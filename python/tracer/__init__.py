@@ -11,7 +11,8 @@
 
 class Result(object):
     """A command result from the controller."""
-    props=[]
+    props = []
+
     def __init__(self, data):
         self.data = data
         self.decode(data)
@@ -24,16 +25,20 @@ class Result(object):
         """Convert a list of two bytes into a floating point value."""
         # convert two bytes to a float value
         return ((two_bytes[1] << 8) | two_bytes[0]) / 100.0
+
     def __str__(self):
-        return "%s{%s}" % (self.__class__.__name__, ", ".join(map(lambda a: "%s: %s" % (a, getattr(self, a)), self.props)))
+        return "%s{%s}" % (self.__class__.__name__, ", ".join(["%s: %s" % (a, getattr(self, a)) for a in self.props]))
+
 
 class QueryResult(Result):
     """The result of a query command."""
-    props=['batt_voltage', 'pv_voltage', 'load_amps', 'batt_overdischarge_voltage', 'batt_full_voltage', 'load_on', 'load_overload', 'load_short', 'batt_overload', 'batt_overdischarge', 'batt_full', 'batt_charging', 'batt_temp', 'charge_current']
+    props = ['batt_voltage', 'pv_voltage', 'load_amps', 'batt_overdischarge_voltage', 'batt_full_voltage', 'load_on', 'load_overload',
+             'load_short', 'batt_overload', 'batt_overdischarge', 'batt_full', 'batt_charging', 'batt_temp', 'charge_current']
+
     def decode(self, data):
         """Decodes the query result, storing results as fields"""
-	if len(data) < 23:
-	    print "Not enough data. Need 23 bytes, got %d" % len(data)
+        if len(data) < 23:
+            print("Not enough data. Need 23 bytes, got %d" % len(data))
         self.batt_voltage = self.to_float(data[0:2])
         self.pv_voltage = self.to_float(data[2:4])
         # [4:2] reserved; always 0
@@ -48,33 +53,42 @@ class QueryResult(Result):
         self.batt_overdischarge = data[17] != 0
         self.batt_full = data[18] != 0
         self.batt_charging = data[19] != 0
-        self.batt_temp = data[20] - 30;
+        self.batt_temp = data[20] - 30
         self.charge_current = self.to_float(data[21:23])
+
 
 class Command(object):
     """A command sent to the controller"""
+
     def __init__(self, code, data=bytearray()):
         self.code = code
         self.data = data
+
     def decode_result(self, data):
         """Decodes the data, storing it in fields"""
         pass
 
+
 class QueryCommand(Command):
     """A command that queries the status of the controller"""
+
     def __init__(self):
         Command.__init__(self, 0xA0)
+
     def decode_result(self, data):
         return QueryResult(data)
 
+
 class ManualCommand(Command):
     """A command that turns the load on or off"""
+
     def __init__(self, state):
         if state:
             data = [0x01]
         else:
             data = [0x00]
         Command.__init__(self, 0xAA, data)
+
 
 class TracerSerial(object):
     """A serial interface to the Tracer"""
@@ -91,7 +105,8 @@ class TracerSerial(object):
 
     def to_bytes(self, command):
         """Converts the command into the bytes that should be sent"""
-        cmd_data = self.tracer.get_command_bytes(command) + bytearray(b'\x00\x00\x7F')
+        cmd_data = self.tracer.get_command_bytes(
+            command) + bytearray(b'\x00\x00\x7F')
         crc_data = self.tracer.add_crc(cmd_data)
         to_send = self.comm_init + crc_data
 
@@ -102,10 +117,11 @@ class TracerSerial(object):
         if data[0:6] != self.sync_header:
             raise Exception("Invalid sync header")
         if len(data) != data[8] + 12:
-            raise Exception("Invalid length. Expecting %d, got %d" % (data[8] + 12, len(data)))
+            raise Exception("Invalid length. Expecting %d, got %d" %
+                            (data[8] + 12, len(data)))
         if not self.tracer.verify_crc(data[6:]):
-            print "invalid crc"
-	    #raise Exception("Invalid CRC")
+            print("invalid crc")
+            #raise Exception("Invalid CRC")
         return self.tracer.get_result(data[6:])
 
     def send_command(self, command):
@@ -119,11 +135,8 @@ class TracerSerial(object):
 
         to_read = 200
 
-        b = 0
-        while b >= 0 and read_idx < (to_read + 12):
+        while read_idx < (to_read + 12):
             b = bytearray(self.port.read(1))
-	    if not b >= 0:
-		break
             buff += b
             if read_idx < len(self.sync_header) and b[0] != self.sync_header[read_idx]:
                 raise IOError("Error receiving result: invalid sync header")
@@ -133,8 +146,10 @@ class TracerSerial(object):
             read_idx += 1
         return self.from_bytes(buff)
 
+
 class Tracer(object):
     """An implementation of the Tracer MT-5 communication protocol"""
+
     def __init__(self, controller_id):
         """Create a new Tracer interface
 
@@ -191,15 +206,15 @@ class Tracer(object):
 
             for j in range(0, 8):
                 r4 = r1
-                r1 = (r1 * 2) & 0xFF;
+                r1 = (r1 * 2) & 0xFF
 
                 if r2 & 0x80:
                     r1 += 1
-                r2 = (r2 * 2) & 0xFF;
+                r2 = (r2 * 2) & 0xFF
 
                 if r3 & 0x80:
                     r2 += 1
-                r3 = (r3 * 2) & 0xFF;
+                r3 = (r3 * 2) & 0xFF
 
                 if r4 & 0x80:
                     r1 ^= 0x10
